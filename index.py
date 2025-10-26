@@ -4,7 +4,6 @@ import whois
 from datetime import datetime
 import pytz
 import time
-import os
 
 CST = pytz.timezone("America/Chicago")
 
@@ -62,7 +61,9 @@ def get_domain_info(domain):
 
 def check_websites(websites):
     results = []
-    for site in websites:
+    for entry in websites:
+        complaint_number = entry[0]
+        site = entry[1]
         domain = site.replace("https://", "").replace("http://", "").split("/")[0]
         print(f"🔍 Checking {site} ...")
 
@@ -70,6 +71,7 @@ def check_websites(websites):
         info = get_domain_info(domain)
 
         results.append({
+            "Complaint Number": complaint_number,
             "Website": site,
             "Domain": domain,
             "Active": active,
@@ -107,11 +109,13 @@ elif input_file.endswith(".csv"):
 else:
     raise ValueError("❌ Please provide a .xlsx or .csv file")
 
-print("Available columns:", df_input.columns.tolist())
-if "Websites" not in df_input.columns:
-    raise ValueError("❌ Input file must have a column named 'Websites'")
 
-websites = df_input["Websites"].dropna().tolist()
+print("Available columns:", df_input.columns.tolist())
+if "Websites" not in df_input.columns or "Complaint Number" not in df_input.columns:
+    raise ValueError("❌ Input file must have columns named 'Complaint Number' and 'Websites'")
+
+# Pair complaint number and website, dropping rows where website is NaN
+websites = df_input[["Complaint Number", "Websites"]].dropna(subset=["Websites"]).values.tolist()
 data = check_websites(websites)
 
 timestamp = datetime.now(CST).strftime("%Y-%m-%d_%H-%M")
