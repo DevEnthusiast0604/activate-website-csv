@@ -9,9 +9,67 @@ CST = pytz.timezone("America/Chicago")
 
 def is_website_active(url):
     try:
-        response = requests.get(url, timeout=5)
-        return response.status_code == 200
-    except requests.RequestException:
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.5',
+            'Connection': 'keep-alive',
+        }
+        
+        if not url.startswith(('http://', 'https://')):
+            url = 'https://' + url
+            
+        print(f"\nDebug for {url}:")
+        response = requests.get(url, timeout=10, headers=headers, allow_redirects=True)
+        print(f"Status Code: {response.status_code}")
+        
+        if response.status_code != 200:
+            print(f"❌ Failed: Status code {response.status_code}")
+            return False
+            
+        content_type = response.headers.get('content-type', '').lower()
+        print(f"Content-Type: {content_type}")
+        if 'text/html' not in content_type and 'application/xhtml+xml' not in content_type:
+            print("❌ Failed: Not HTML content")
+            return False
+            
+        content = response.text.lower()
+        print(f"Content Length: {len(content)} characters")
+        
+        if len(content) < 100:
+            print("❌ Failed: Content too short")
+            return False
+            
+        parking_indicators = [
+            'domain is for sale',
+            'buy this domain',
+            'parked domain',
+            'domain parking',
+            'this website is for sale',
+            '404 not found',
+            'page not found',
+            'website coming soon',
+            'under construction',
+            'error page',
+            'site suspended',
+            'account suspended'
+        ]
+        
+        for indicator in parking_indicators:
+            if indicator in content:
+                print(f"❌ Failed: Found parking indicator: {indicator}")
+                return False
+                
+        basic_html_elements = ['<html', '<body', '<head']
+        if not any(element in content for element in basic_html_elements):
+            print("❌ Failed: No basic HTML structure")
+            return False
+            
+        print("✅ Website is active!")
+        return True
+        
+    except requests.RequestException as e:
+        print(f"❌ Failed: Request error - {str(e)}")
         return False
 
 def convert_to_cst(dt):
@@ -114,7 +172,6 @@ print("Available columns:", df_input.columns.tolist())
 if "Websites" not in df_input.columns or "Complaint Number" not in df_input.columns:
     raise ValueError("❌ Input file must have columns named 'Complaint Number' and 'Websites'")
 
-# Pair complaint number and website, dropping rows where website is NaN
 websites = df_input[["Complaint Number", "Websites"]].dropna(subset=["Websites"]).values.tolist()
 data = check_websites(websites)
 
