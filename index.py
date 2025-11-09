@@ -10,67 +10,35 @@ CST = pytz.timezone("America/Chicago")
 def is_website_active(url):
     try:
         headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
             'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
             'Accept-Language': 'en-US,en;q=0.5',
             'Connection': 'keep-alive',
         }
-        
+
         if not url.startswith(('http://', 'https://')):
             url = 'https://' + url
-            
-        print(f"\nDebug for {url}:")
-        response = requests.get(url, timeout=10, headers=headers, allow_redirects=True)
-        print(f"Status Code: {response.status_code}")
-        
-        if response.status_code != 200:
-            print(f"❌ Failed: Status code {response.status_code}")
-            return False
-            
+
+        response = requests.get(url, timeout=5, headers=headers, allow_redirects=True)
+        status = response.status_code
+
+        if not (200 <= status < 300):
+            body_lower = response.text.lower()
+            if status == 403 and any(k in body_lower for k in ('just a moment', 'checking your browser', 'cloudflare')):
+                return True, status
+            return False, status
+
         content_type = response.headers.get('content-type', '').lower()
-        print(f"Content-Type: {content_type}")
-        if 'text/html' not in content_type and 'application/xhtml+xml' not in content_type:
-            print("❌ Failed: Not HTML content")
-            return False
-            
+        if not any(ct in content_type for ct in ('text/html', 'application/xhtml+xml')):
+            return False, status
+
         content = response.text.lower()
-        print(f"Content Length: {len(content)} characters")
-        
-        if len(content) < 100:
-            print("❌ Failed: Content too short")
-            return False
-            
-        parking_indicators = [
-            'domain is for sale',
-            'buy this domain',
-            'parked domain',
-            'domain parking',
-            'this website is for sale',
-            '404 not found',
-            'page not found',
-            'website coming soon',
-            'under construction',
-            'error page',
-            'site suspended',
-            'account suspended'
-        ]
-        
-        for indicator in parking_indicators:
-            if indicator in content:
-                print(f"❌ Failed: Found parking indicator: {indicator}")
-                return False
-                
-        basic_html_elements = ['<html', '<body', '<head']
-        if not any(element in content for element in basic_html_elements):
-            print("❌ Failed: No basic HTML structure")
-            return False
-            
-        print("✅ Website is active!")
-        return True
-        
-    except requests.RequestException as e:
-        print(f"❌ Failed: Request error - {str(e)}")
-        return False
+        if len(content) < 100 or not any(tag in content for tag in ['<html', '<body']):
+            return False, status
+
+        return True, status
+
+    except requests.RequestException:
+        return False, None
 
 def convert_to_cst(dt):
     if isinstance(dt, list):
@@ -125,7 +93,7 @@ def check_websites(websites):
         domain = site.replace("https://", "").replace("http://", "").split("/")[0]
         print(f"🔍 Checking {site} ...")
 
-        active = is_website_active(site)
+        active, status_code = is_website_active(site)
         info = get_domain_info(domain)
 
         results.append({
@@ -133,6 +101,7 @@ def check_websites(websites):
             "Website": site,
             "Domain": domain,
             "Active": active,
+            "Status Code": status_code,
             "Registrar": info.get("registrar"),
             "Privacy Enabled": info.get("privacy_enabled"),
             "WHOIS Server": info.get("whois_server"),
