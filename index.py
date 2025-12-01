@@ -38,7 +38,7 @@ def is_website_active(url):
         return True, status
 
     except requests.RequestException:
-        return False, None
+        return False, 404
 
 def convert_to_cst(dt):
     if isinstance(dt, list):
